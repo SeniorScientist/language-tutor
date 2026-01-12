@@ -1,0 +1,92 @@
+# Docker Compose for Production Deployment on Local PC Server
+# Uses local LLM (Qwen2.5-7B) with NVIDIA GPU
+
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.gpu
+    container_name: language-tutor-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - LLM_PROVIDER=local
+      - LOCAL_MODEL_PATH=/app/models/model.gguf
+      - GPU_LAYERS=-1
+      - CONTEXT_LENGTH=8192
+      - EMBEDDING_MODEL=all-MiniLM-L6-v2
+      - CHROMA_PERSIST_DIRECTORY=/app/chroma_db
+      - CORS_ORIGINS=["http://localhost:3000", "http://127.0.0.1:3000", "http://${SERVER_IP:-localhost}:3000"]
+      - DEBUG=false
+    volumes:
+      - ./backend/chroma_db:/app/chroma_db
+      - ./backend/models:/app/models:ro
+      - ./backend/training_data:/app/training_data
+      - ./backend/training_jobs:/app/training_jobs
+      - model_cache:/root/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://${SERVER_IP:-localhost}:8000
+    container_name: language-tutor-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Optional: Nginx reverse proxy for production
+  nginx:
+    image: nginx:alpine
+    container_name: language-tutor-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - frontend
+      - backend
+    restart: unless-stopped
+    profiles:
+      - production
+
+volumes:
+  model_cache:
+
+networks:
+  default:
+    name: language-tutor-network

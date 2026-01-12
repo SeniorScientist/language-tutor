@@ -1,0 +1,58 @@
+# Docker Compose for Cloud/Production with GPU (Local LLM)
+# Uses llama-cpp-python for local inference
+
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.gpu
+    container_name: language-tutor-backend-gpu
+    ports:
+      - "8000:8000"
+    environment:
+      - LLM_PROVIDER=local
+      - LOCAL_MODEL_PATH=/app/models/model.gguf
+      - GPU_LAYERS=-1
+      - CONTEXT_LENGTH=4096
+      - EMBEDDING_MODEL=all-MiniLM-L6-v2
+      - CHROMA_PERSIST_DIRECTORY=/app/chroma_db
+      - CORS_ORIGINS=["http://localhost:3000", "http://127.0.0.1:3000", "https://yourdomain.com"]
+    volumes:
+      - chroma_data:/app/chroma_db
+      - model_cache:/root/.cache
+      - ./models:/app/models:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:8000
+    container_name: language-tutor-frontend-gpu
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  chroma_data:
+  model_cache:
+

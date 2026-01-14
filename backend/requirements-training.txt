@@ -1,0 +1,33 @@
+# Training requirements for local model fine-tuning
+# Install with: pip install -r requirements-training.txt
+
+# Core training libraries
+torch>=2.0.0
+transformers>=4.36.0
+datasets>=2.14.0
+accelerate>=0.25.0
+bitsandbytes>=0.41.0  # For 4-bit quantization
+
+# LoRA/PEFT for efficient fine-tuning
+peft>=0.7.0
+
+# TRL for supervised fine-tuning
+trl>=0.7.0
+
+# Unsloth for 2x faster training (optional, recommended)
+# Uncomment based on your CUDA version:
+# unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git  # For Colab
+# unsloth[cu118] @ git+https://github.com/unslothai/unsloth.git      # CUDA 11.8
+# unsloth[cu121] @ git+https://github.com/unslothai/unsloth.git      # CUDA 12.1
+# unsloth[cu124] @ git+https://github.com/unslothai/unsloth.git      # CUDA 12.4
+
+# For GGUF export (optional)
+# llama-cpp-python with GPU support
+# CMAKE_ARGS="-DLLAMA_CUBLAS=on" pip install llama-cpp-python
+
+# Weights & Biases for experiment tracking (optional)
+# wandb
+
+# Monitoring
+psutil>=5.9.0
+

@@ -38,6 +38,10 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
+# Create public directory (may be empty)
+RUN mkdir -p ./public
+
+# Copy public folder if it exists and has files
 COPY --from=builder /app/public ./public
 
 # Automatically leverage output traces to reduce image size

@@ -1,0 +1,15 @@
+__pycache__
+*.pyc
+*.pyo
+.git
+.gitignore
+*.md
+.env
+.venv
+venv
+chroma_db
+models
+training_data
+training_jobs
+*.egg-info
+.pytest_cache

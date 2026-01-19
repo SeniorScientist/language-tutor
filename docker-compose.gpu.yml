@@ -1,7 +1,5 @@
-# Docker Compose for Cloud/Production with GPU (Local LLM)
-# Uses llama-cpp-python for local inference
-
-version: '3.8'
+# Docker Compose for GPU mode (Local LLM)
+# Uses llama-cpp-python with NVIDIA GPU
 
 services:
   backend:
@@ -22,7 +20,7 @@ services:
     volumes:
       - chroma_data:/app/chroma_db
       - model_cache:/root/.cache
-      - ./models:/app/models:ro
+      - ./backend/models:/app/models:ro
     deploy:
       resources:
         reservations:

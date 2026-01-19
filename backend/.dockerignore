@@ -8,7 +8,9 @@ __pycache__
 .venv
 venv
 chroma_db
-models
+# Only ignore model files, not Python package
+*.gguf
+models/*.gguf
 training_data
 training_jobs
 *.egg-info

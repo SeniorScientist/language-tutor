@@ -42,8 +42,10 @@ An AI-powered language tutoring application with chat, grammar correction, and i
 
 | Mode | Use Case | LLM | GPU Required |
 |------|----------|-----|--------------|
-| Development | Local testing | Groq API | ❌ No |
-| Production | Self-hosted server | Qwen2.5-7B | ✅ Yes |
+| `dev` | Local testing | Groq API | ❌ No |
+| `cpu` | VPS/Server (no GPU) | Qwen2.5-7B | ❌ No |
+| `gpu` | Server with GPU | Qwen2.5-7B | ✅ Yes |
+| `production` | Full production (GPU + Nginx) | Qwen2.5-7B | ✅ Yes |
 
 ---
 
@@ -57,10 +59,14 @@ An AI-powered language tutoring application with chat, grammar correction, and i
 - NVIDIA GPU with 8GB+ VRAM (for production)
 - NVIDIA Container Toolkit (for production)
 
-### Option 1: Production Deployment (Local Server with GPU)
+### Option 1: VPS/Remote Server Deployment
 
-1. **Clone and navigate to the project:**
+Deploy on a VPS and access from any device on the internet.
+
+1. **SSH into your VPS and clone the project:**
 ```bash
+ssh user@your-vps-ip
+git clone https://github.com/yourrepo/language-tutor.git
 cd language-tutor
 ```
 
@@ -73,9 +79,52 @@ wget https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF/resolve/main/Qwen
   -O backend/models/model.gguf
 ```
 
-3. **Deploy with Docker:**
+3. **Set your VPS public IP and deploy:**
 ```bash
-./scripts/deploy.sh
+# Interactive setup (recommended)
+./scripts/deploy.sh cpu --set-host
+
+# Or manually set the IP
+echo "SERVER_HOST=123.45.67.89" > .env
+./scripts/deploy.sh cpu --rebuild
+```
+
+4. **Open firewall ports:**
+```bash
+# UFW (Ubuntu)
+sudo ufw allow 3000/tcp  # Frontend
+sudo ufw allow 8000/tcp  # Backend API
+
+# Or firewalld (CentOS/RHEL)
+sudo firewall-cmd --permanent --add-port=3000/tcp
+sudo firewall-cmd --permanent --add-port=8000/tcp
+sudo firewall-cmd --reload
+```
+
+5. **Access from any browser:**
+- Frontend: `http://your-vps-ip:3000`
+- Backend API: `http://your-vps-ip:8000`
+- API Docs: `http://your-vps-ip:8000/docs`
+
+> **Note:** The `SERVER_HOST` variable configures CORS (backend) and API URL (frontend) so browsers can connect to your VPS.
+
+---
+
+### Option 2: Local Server with GPU
+
+1. **Navigate to the project:**
+```bash
+cd language-tutor
+```
+
+2. **Download the model:**
+```bash
+./scripts/download-model.sh
+```
+
+3. **Deploy with GPU support:**
+```bash
+./scripts/deploy.sh gpu
 ```
 
 4. **Access the application:**
@@ -128,14 +177,38 @@ npm run dev
 
 ## Deployment Scripts
 
-| Script | Description |
-|--------|-------------|
-| `./scripts/deploy.sh` | Build and start production containers |
-| `./scripts/deploy.sh --dev` | Start in development mode (Groq) |
-| `./scripts/deploy.sh --rebuild` | Force rebuild containers |
+### Basic Commands
+
+| Command | Description |
+|---------|-------------|
+| `./scripts/deploy.sh cpu` | Deploy with CPU only (no GPU required) |
+| `./scripts/deploy.sh gpu` | Deploy with NVIDIA GPU |
+| `./scripts/deploy.sh production` | Full production (GPU + Nginx) |
+| `./scripts/deploy.sh dev` | Development mode (uses Groq API) |
 | `./scripts/deploy.sh --stop` | Stop all services |
 | `./scripts/deploy.sh --logs` | View container logs |
 | `./scripts/download-model.sh` | Download Qwen model |
+
+### VPS/Remote Deployment
+
+| Command | Description |
+|---------|-------------|
+| `./scripts/deploy.sh cpu --set-host` | Set VPS IP interactively and deploy |
+| `./scripts/deploy.sh gpu --set-host` | Set VPS IP and deploy with GPU |
+| `./scripts/deploy.sh cpu --rebuild` | Rebuild after changing SERVER_HOST |
+
+### Environment Configuration
+
+Create a `.env` file in the project root for VPS deployment:
+
+```bash
+# .env
+SERVER_HOST=your-vps-ip-or-domain
+```
+
+This sets:
+- **CORS origins** on the backend (allows browser requests from your VPS IP)
+- **API URL** for the frontend (connects to backend via VPS IP)
 
 ---
 
@@ -252,6 +325,42 @@ language-tutor/
 
 ## Troubleshooting
 
+### Cannot connect from another PC (CORS error)
+
+**Problem:** Frontend loads but API calls fail with CORS errors.
+
+**Solution:** Set `SERVER_HOST` to your VPS public IP and rebuild:
+```bash
+echo "SERVER_HOST=your-vps-ip" > .env
+./scripts/deploy.sh cpu --rebuild
+```
+
+**Why:** The frontend is built with the API URL baked in. If built with `localhost`, browsers on other machines can't reach it.
+
+---
+
+### Frontend shows "Failed to fetch" or "Network error"
+
+1. **Check backend is running:**
+```bash
+curl http://your-vps-ip:8000/api/health
+```
+
+2. **Check firewall allows ports 3000 and 8000:**
+```bash
+# Ubuntu
+sudo ufw status
+sudo ufw allow 3000/tcp
+sudo ufw allow 8000/tcp
+```
+
+3. **Check container logs:**
+```bash
+./scripts/deploy.sh --logs
+```
+
+---
+
 ### Model loading issues
 ```bash
 # Check NVIDIA driver
@@ -266,7 +375,12 @@ docker run --rm --gpus all nvidia/cuda:12.1-base nvidia-smi
 - Reduce context length: `CONTEXT_LENGTH=4096`
 - Use smaller model: Qwen2.5-3B instead of 7B
 
-### Slow responses
+### Slow responses (CPU mode)
+- CPU inference is 10-50x slower than GPU
+- Consider using Groq API for development: `./scripts/deploy.sh dev`
+- For production, use GPU mode: `./scripts/deploy.sh gpu`
+
+### Slow responses (GPU mode)
 - Ensure GPU is being used: check logs for "GPU layers"
 - Increase GPU layers: `GPU_LAYERS=-1`
 

@@ -1,5 +1,12 @@
-# Docker Compose for Production Deployment on Local PC Server (CPU Only)
+# Docker Compose for Production Deployment (CPU Only)
 # Uses local LLM (Qwen2.5-7B) without GPU
+#
+# IMPORTANT: For VPS deployment, create a .env file with:
+#   SERVER_HOST=your-vps-ip-or-domain
+#
+# Example:
+#   echo "SERVER_HOST=123.45.67.89" > .env
+#   docker compose -f docker-compose.cpu.yml up -d --build
 
 services:
   backend:
@@ -16,7 +23,7 @@ services:
       - CONTEXT_LENGTH=4096
       - EMBEDDING_MODEL=all-MiniLM-L6-v2
       - CHROMA_PERSIST_DIRECTORY=/app/chroma_db
-      - CORS_ORIGINS=["http://localhost:3000", "http://127.0.0.1:3000"]
+      - CORS_ORIGINS=["http://localhost:3000", "http://127.0.0.1:3000", "http://${SERVER_HOST:-localhost}:3000", "https://${SERVER_HOST:-localhost}:3000", "http://${SERVER_HOST:-localhost}", "https://${SERVER_HOST:-localhost}"]
       - DEBUG=false
     volumes:
       - ./backend/chroma_db:/app/chroma_db
@@ -26,7 +33,7 @@ services:
       - model_cache:/root/.cache
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/api/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -42,12 +49,10 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_API_URL=http://localhost:8000
+        - NEXT_PUBLIC_API_URL=http://${SERVER_HOST:-localhost}:8000
     container_name: language-tutor-frontend
     ports:
       - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_API_URL=http://backend:8000
     depends_on:
       backend:
         condition: service_healthy
@@ -60,6 +65,7 @@ services:
 
 volumes:
   model_cache:
+
 
 networks:
   default:

@@ -1,26 +1,31 @@
-# Docker Compose for GPU mode (Local LLM)
-# Uses llama-cpp-python with NVIDIA GPU
+# Docker Compose for GPU mode (Local LLM with NVIDIA GPU)
+#
+# IMPORTANT: For VPS deployment, create a .env file with:
+#   SERVER_HOST=your-vps-ip-or-domain
 
 services:
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile.gpu
-    container_name: language-tutor-backend-gpu
+    container_name: language-tutor-backend
     ports:
       - "8000:8000"
     environment:
       - LLM_PROVIDER=local
       - LOCAL_MODEL_PATH=/app/models/model.gguf
       - GPU_LAYERS=-1
-      - CONTEXT_LENGTH=4096
+      - CONTEXT_LENGTH=8192
       - EMBEDDING_MODEL=all-MiniLM-L6-v2
       - CHROMA_PERSIST_DIRECTORY=/app/chroma_db
-      - CORS_ORIGINS=["http://localhost:3000", "http://127.0.0.1:3000", "https://yourdomain.com"]
+      - CORS_ORIGINS=["http://localhost:3000", "http://127.0.0.1:3000", "http://${SERVER_HOST:-localhost}:3000", "https://${SERVER_HOST:-localhost}:3000", "http://${SERVER_HOST:-localhost}", "https://${SERVER_HOST:-localhost}"]
+      - DEBUG=false
     volumes:
-      - chroma_data:/app/chroma_db
-      - model_cache:/root/.cache
+      - ./backend/chroma_db:/app/chroma_db
       - ./backend/models:/app/models:ro
+      - ./backend/training_data:/app/training_data
+      - ./backend/training_jobs:/app/training_jobs
+      - model_cache:/root/.cache
     deploy:
       resources:
         reservations:
@@ -34,23 +39,35 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_API_URL=http://localhost:8000
-    container_name: language-tutor-frontend-gpu
+        - NEXT_PUBLIC_API_URL=http://${SERVER_HOST:-localhost}:8000
+    container_name: language-tutor-frontend
     ports:
       - "3000:3000"
-    environment:
-      - NEXT_PUBLIC_API_URL=http://backend:8000
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
-  chroma_data:
   model_cache:
 
+networks:
+  default:
+    name: language-tutor-network
